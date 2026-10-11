@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 const steps = [
   "Upload an image that feels like you",
@@ -17,27 +18,33 @@ export default function Home() {
         priority
         className="h-auto w-64 md:w-80"
       />
-      <div className="flex max-w-md flex-col gap-6 text-center md:text-left">
-        <h1 className="text-4xl font-semibold tracking-tight">COMO</h1>
-        <p className="text-lg text-zinc-600 dark:text-zinc-400">
-          A notebook made for you, to help you notice what you feel before you
-          eat. Design the cover, pick your own prompts, and renew it every 30
-          days.
+      <div className="flex max-w-md flex-col items-center gap-6 text-center md:items-start md:text-left">
+        <span className="rounded-full bg-forest-pale px-3 py-1.5 text-xs font-medium text-forest">
+          A notebook made for you
+        </span>
+        <h1 className="text-5xl font-bold md:text-6xl">
+          Notice what you feel{" "}
+          <span className="text-forest">before</span> you{" "}
+          <span className="text-peach">eat</span>.
+        </h1>
+        <p className="text-lg leading-relaxed text-ink-mid">
+          Design the cover, pick your own prompts for every page, and renew it
+          every 30 days.
         </p>
-        <ol className="flex flex-col gap-2 text-left text-zinc-700 dark:text-zinc-300">
+        <ol className="flex flex-col gap-2 text-left text-ink-mid">
           {steps.map((step, i) => (
             <li key={step} className="flex gap-3">
-              <span className="font-mono text-zinc-400">{i + 1}.</span>
+              <span className="font-medium text-peach">{i + 1}</span>
               {step}
             </li>
           ))}
         </ol>
-        <button
-          type="button"
-          className="self-center rounded-full bg-[#5f8470] px-6 py-3 font-medium text-white md:self-start"
+        <Link
+          href="/design"
+          className="rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light"
         >
           Design your cover
-        </button>
+        </Link>
       </div>
     </main>
   );
