@@ -1,17 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NotebookMockup } from "./NotebookMockup";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
-type NotebookPhase = "idle" | "building" | "ready" | "ordering" | "error";
-
-type Notebook = {
-  productId: string;
-  title: string;
-  selectionLabel: string;
-  imageUrl: string;
-  unitPrice: { amount: string; currency: string } | null;
-};
 
 const POLL_MS = 3000;
 
@@ -22,9 +14,6 @@ export function CoverDesigner() {
   const [error, setError] = useState<string | null>(null);
   const [cover, setCover] = useState<string | null>(null);
   const [patternId, setPatternId] = useState<string | null>(null);
-  const [nbPhase, setNbPhase] = useState<NotebookPhase>("idle");
-  const [nbError, setNbError] = useState<string | null>(null);
-  const [notebook, setNotebook] = useState<Notebook | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -60,74 +49,11 @@ export function CoverDesigner() {
     }, POLL_MS);
   }
 
-  function nbFail(message: string) {
-    setNbError(message);
-    setNbPhase("error");
-  }
-
-  function pollProduct(jobId: string) {
-    timer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/products/${jobId}`);
-        const data = await res.json();
-        if (!res.ok) return nbFail(data.error ?? "Something went wrong");
-        if (data.status === "running") return pollProduct(jobId);
-        if (data.status === "failed") return nbFail(data.error);
-        setNotebook(data);
-        setNbPhase("ready");
-      } catch {
-        nbFail("Lost connection while building your notebook");
-      }
-    }, POLL_MS);
-  }
-
-  async function makeNotebook() {
-    if (!patternId) return;
-    setNbError(null);
-    setNbPhase("building");
-    try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patternId }),
-      });
-      const data = await res.json();
-      if (!res.ok) return nbFail(data.error ?? "Something went wrong");
-      pollProduct(data.jobId);
-    } catch {
-      nbFail("Something went wrong. Try again.");
-    }
-  }
-
-  async function checkout() {
-    if (!notebook) return;
-    setNbPhase("ordering");
-    try {
-      const res = await fetch("/api/checkouts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: notebook.productId, quantity: 1 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setNbPhase("ready");
-        return setNbError(data.error ?? "Couldn't start checkout");
-      }
-      window.location.assign(data.checkoutUrl);
-    } catch {
-      setNbPhase("ready");
-      setNbError("Couldn't start checkout");
-    }
-  }
-
   async function generate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setCover(null);
     setPatternId(null);
-    setNotebook(null);
-    setNbPhase("idle");
-    setNbError(null);
     try {
       let referenceId: string | undefined;
       if (file) {
@@ -197,40 +123,16 @@ export function CoverDesigner() {
       </form>
 
       <div className="flex min-h-80 flex-col items-center justify-center gap-5 rounded-[var(--radius-card)] border border-line bg-off-white p-4">
-        {notebook ? (
+        {cover && patternId ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={notebook.imageUrl} alt={notebook.title} className="max-h-[28rem] rounded-2xl shadow-frame" />
-            <div className="text-center">
-              <p className="font-serif text-xl font-bold">{notebook.title}</p>
-              <p className="text-sm text-ink-light">{notebook.selectionLabel}</p>
-              {notebook.unitPrice && (
-                <p className="mt-1 font-medium">
-                  {notebook.unitPrice.amount} {notebook.unitPrice.currency}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={checkout}
-              disabled={nbPhase === "ordering"}
-              className="rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light disabled:opacity-50"
+            <NotebookMockup cover={cover} />
+            <p className="text-sm text-ink-light">Your cover on a COMO notebook</p>
+            <a
+              href={`/api/patterns/${patternId}/download`}
+              className="rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light"
             >
-              {nbPhase === "ordering" ? "Opening checkout…" : "Order this notebook"}
-            </button>
-          </>
-        ) : cover ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={cover} alt="Your generated cover pattern" className="max-h-[28rem] rounded-2xl shadow-frame" />
-            <button
-              type="button"
-              onClick={makeNotebook}
-              disabled={nbPhase === "building"}
-              className="rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light disabled:opacity-50"
-            >
-              {nbPhase === "building" ? "Building your notebook…" : "Turn it into a notebook"}
-            </button>
+              Download cover
+            </a>
           </>
         ) : (
           <p className="text-center text-ink-light">
@@ -239,7 +141,6 @@ export function CoverDesigner() {
               : "Your cover will appear here."}
           </p>
         )}
-        {nbError && <p role="alert" className="text-raspberry">{nbError}</p>}
       </div>
     </div>
   );
