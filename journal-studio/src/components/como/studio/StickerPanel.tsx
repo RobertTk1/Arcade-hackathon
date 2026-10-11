@@ -61,7 +61,7 @@ export function StickerPanel({ onSelect }: { onSelect: (id: string) => void }) {
 
   return (
     <div className="space-y-6">
-      <Section title="Add something you love">
+      <Section title="Add something you love" hint="Preview only, not printed">
         <p className="mb-3 text-xs text-muted-foreground">Turn a photo of your pet, someone special, or a favorite little thing into a sticker for your cover.</p>
         {!photo ? (
           <button

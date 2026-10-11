@@ -8,6 +8,7 @@ export interface ReferenceImage {
   dataUrl: string;
   mimeType: string;
   size: number;
+  arcadeReferenceId?: string | undefined; // set once uploaded to Arcade
 }
 
 /** Visual parameters the mock renderer uses to display an artwork asset. */
@@ -23,7 +24,7 @@ export interface ArtworkRender {
 
 export interface ArtworkAsset {
   id: string; // local design ID
-  arcadePatternId: string | null; // future Arcade pattern ID
+  arcadePatternId: string | null; // Arcade pattern ID; null for bundled sample art
   prompt: string;
   style: PatternStyle | null; // null = let Arcade choose (omitted modelId)
   colors: string[];
@@ -34,6 +35,7 @@ export interface ArtworkAsset {
   status: JobStatus;
   error?: string | undefined;
   render: ArtworkRender;
+  size?: { width: number; height: number } | undefined; // Arcade pixel size
   createdAt: number;
 }
 

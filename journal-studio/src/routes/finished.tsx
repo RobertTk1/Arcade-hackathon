@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { JournalCover } from "@/components/como/JournalCover";
 import { JournalMockup } from "@/components/como/JournalMockup";
 import { PromptsDialog } from "@/components/como/PromptsDialog";
+import { OrderDialog } from "@/components/como/OrderDialog";
 import { CHAPTERS } from "@/data/journal";
 import { selectedPrompts, setState, uid, useComo } from "@/lib/como/store";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,9 @@ type View = "front" | "angled" | "inside";
 function Finished() {
   const [view, setView] = useState<View>("angled");
   const [open, setOpen] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   const design = useComo((s) => s.design);
+  const patternId = useComo((s) => s.artworks[s.design.artworkId]?.arcadePatternId ?? null);
   const promptIds = useComo((s) => s.promptIds);
   const extra = useComo((s) => s.extraPrompts);
   const prompts = useMemo(() => selectedPrompts({ promptIds, extraPrompts: extra }), [promptIds, extra]);
@@ -90,7 +93,7 @@ function Finished() {
               ))}
             </ul>
           </div>
-          <Button size="lg" className="mt-8 h-12 w-full rounded-full text-base sm:w-auto sm:px-10" onClick={() => toast("Ordering and printing will be available when production is connected.")}>
+          <Button size="lg" className="mt-8 h-12 w-full rounded-full text-base sm:w-auto sm:px-10" onClick={() => (patternId ? setOrdering(true) : toast("Generate your own artwork in the studio first. Sample covers can't be ordered."))}>
             Continue to order
           </Button>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -98,10 +101,11 @@ function Finished() {
             <Button asChild variant="secondary" className="rounded-full"><Link to="/inside">View inside pages</Link></Button>
             <Button variant="secondary" className="rounded-full" onClick={save}>Save design</Button>
           </div>
-          <p className="mt-6 text-xs text-muted-foreground">This preview shows your design; final print artwork is prepared separately.</p>
+          <p className="mt-6 text-xs text-muted-foreground">Your title and stickers frame the artwork in this preview. The printed item uses your artwork only.</p>
         </section>
       </main>
       <PromptsDialog open={open} onOpenChange={setOpen} />
+      {patternId && <OrderDialog open={ordering} onOpenChange={setOrdering} patternId={patternId} />}
     </div>
   );
 }

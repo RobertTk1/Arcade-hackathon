@@ -24,7 +24,7 @@ export function TextPanel() {
 
   return (
     <div className="space-y-6">
-      <Section title="Title">
+      <Section title="Title" hint="Preview only, not printed">
         <Input value={d.title} maxLength={40} onFocus={begin} onChange={(e) => setField("title", e.target.value)} className="rounded-xl bg-card font-serif text-base" />
         <div className="mt-2 flex flex-wrap gap-1.5">
           {TITLE_SUGGESTIONS.map((s) => (

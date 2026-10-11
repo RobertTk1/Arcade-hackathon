@@ -45,8 +45,25 @@ Order `status` values from Arcade, grouped into the UI's five steps (Payment, Or
 | Order my notebook (build) | `POST /api/products`, `GET /api/products/[jobId]` | `categories/list`, `categories/get`, `products/create`, `jobs/get`, `products/get` | Wired, stand-in product |
 | Continue to checkout | `POST /api/checkouts` | `checkouts/create` | Wired |
 | Order confirmation / status page | `GET /api/orders/[checkoutId]` (poll every 4 s unpaid, 20 s after) | `orders/get` | Built; **unverified against a paid order** |
+| Style picker (journal studio) | `GET /api/models` | `models/list` | Wired; style names matched to `modelId` by name, unmatched styles go in the prompt only |
+| Refine: edit, change one area, recolor, extend, make seamless, fix details (journal studio) | `POST /api/patterns/[patternId]/refine` `{operation, ...}`, poll `GET /api/covers/[jobId]` | `refine/edit`, `editRegion`, `recolor`, `extendPattern`, `extendScene`, `makeSeamless`, `fixDeformity` | Wired, **unverified live** |
+| Recolor cluster lookup | `POST /api/patterns/[patternId]/clusters` | `refine/recolorClusters` (sync) | Wired |
+| Refresh an expired image URL | `GET /api/patterns/[patternId]` | `patterns/get` | Wired |
 
 `/api/orders/[checkoutId]` returns only the order number, status, total, line items and carrier tracking links. It drops the shipping address, maker name and tracking number, because checkout IDs are plain numbers and the page has no login.
+
+## Journal studio (`journal-studio/`)
+
+The Lovable app (TanStack Start + Vite) lives in `journal-studio/` and keeps being edited in Lovable. It has no server code of its own: `journal-studio/src/lib/como/arcade-http.ts` calls the routes above over HTTP, and the Arcade key stays on the Next.js server. `src/proxy.ts` allows cross-origin calls from `*.lovable.app`, `*.lovableproject.com`, `localhost` and `CORS_ALLOWED_ORIGINS`.
+
+- Generate: one `patterns/create` job per idea (`VITE_IDEAS_PER_BATCH`, default 4), with `colors`, up to 3 `referenceIds` and a `modelId` when the style name matches a model.
+- Change one area: the 3×3 picker cell becomes a PNG mask (alpha > 0 is editable) at the pattern's aspect ratio, long edge at most 1536 px.
+- Recolor: `recolorClusters`, then each cluster gets the palette color closest in lightness.
+- Extend: grows the canvas to the cover's 148:210 proportions (or 25% if already there).
+- Make seamless: centered square tile at the image's short side.
+- Crop & frame: local zoom and position only; no Arcade call.
+- Title, subtitle, initials and stickers are drawn over the artwork in the preview only. They are never sent to Arcade or printed.
+- Order: `/api/products`, `/api/checkouts`, then the Next.js `/order/[checkoutId]` page.
 
 ## Request constraints
 
@@ -67,7 +84,7 @@ Order `status` values from Arcade, grouped into the UI's five steps (Payment, Or
 - **A notebook product.** Only the stand-in above.
 - **A style parameter.** The "Look" chips (Minimal cover, Soft illustration, Paper texture) are appended to the prompt as text. They steer the model but are not guaranteed.
 - **Several concepts from one request.** One `patterns/create` job produces one pattern. "Choose a concept" means running it again.
-- **A title or text on the cover.** There is no text-overlay endpoint. Refines (`edit`, `editRegion`, `recolor`, `recolorClusters`, `crop`, `makeSeamless`, `extendPattern`, `extendScene`) change the image; they are not a typesetting tool, so exact lettering is not guaranteed. None of them are wired up yet.
+- **A title or text on the cover.** There is no text-overlay endpoint. Refines (`edit`, `editRegion`, `recolor`, `recolorClusters`, `crop`, `makeSeamless`, `extendPattern`, `extendScene`) change the image; they are not a typesetting tool, so exact lettering is not guaranteed. The journal studio wires them up as image refines only.
 - **Exact reproduction of an inspiration image.** References steer style; the output is a new pattern.
 - **A dynamic "reflection prompt".** That card is static copy in the UI; no Arcade call is involved.
 - **Predictable timing or price before building.** Price comes only from `products/get` after the product job succeeds.

@@ -31,13 +31,18 @@ export function ArtworkLayer({ art, fit }: { art?: ArtworkAsset | undefined; fit
   if (!art) return <div className="absolute inset-0 bg-secondary" />;
   const r = art.render;
   const zoom = fit?.zoom ?? 1;
+  // Arcade artwork fills the cover like background-size: cover, scaled by zoom.
+  // Bundled sample art keeps the mock's tile scaling.
+  const size = art.size
+    ? art.size.width / art.size.height > COVER_RATIO ? `auto ${100 * zoom}%` : `${100 * zoom}% auto`
+    : `${r.tileScale * 100 * zoom}% auto`;
   return (
     <div className="absolute inset-0 overflow-hidden">
       <div
         className="absolute inset-0 transition-all duration-500"
         style={{
           backgroundImage: `url(${r.src})`,
-          backgroundSize: r.tileScale >= 1 ? `${r.tileScale * 100 * zoom}% auto` : `${r.tileScale * 100 * zoom}% auto`,
+          backgroundSize: size,
           backgroundRepeat: "repeat",
           backgroundPosition: fit ? `calc(${r.position.split(" ")[0]} + ${fit.offsetX}%) calc(${r.position.split(" ")[1] ?? "50%"} + ${fit.offsetY}%)` : r.position,
           filter: r.filter || undefined,

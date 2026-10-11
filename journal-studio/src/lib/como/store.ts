@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { ART_POOL, DECORATIVE_STICKERS, svgToDataUrl } from "@/data/catalog";
 import { MAYA_PROMPTS, type Prompt } from "@/data/journal";
 import dog from "@/assets/sticker-dog.png";
+import { getPattern, USE_MOCK } from "./api";
 import type {
   ArtworkAsset, CoverDesign, GenerationBatch, GenerationInput, ReferenceImage, SavedDesign, StickerAsset,
 } from "./types";
@@ -109,10 +110,33 @@ export function hydrateStore() {
       }
       state = { ...seed(), ...saved, past: [], future: [] };
       listeners.forEach((l) => l());
+      void refreshArtworkUrls();
     }
   } catch {
     /* ignore */
   }
+}
+
+/** Arcade image URLs are short-lived; swap in fresh ones for every saved Arcade artwork. */
+async function refreshArtworkUrls() {
+  if (USE_MOCK) return;
+  const queue = Object.values(state.artworks).filter((a) => a.arcadePatternId && a.status === "succeeded");
+  const worker = async () => {
+    for (let a = queue.shift(); a; a = queue.shift()) {
+      const { id, arcadePatternId } = a;
+      try {
+        const p = await getPattern(arcadePatternId!);
+        setState((s) => {
+          const cur = s.artworks[id];
+          if (!cur) return {};
+          return { artworks: { ...s.artworks, [id]: { ...cur, render: { ...cur.render, src: p.imageUrl }, size: { width: p.width, height: p.height } } } };
+        });
+      } catch {
+        // Keep the old URL; the image may still load or the pattern was deleted.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
 }
 
 export function getState() {

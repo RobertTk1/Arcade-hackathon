@@ -1,17 +1,21 @@
 /**
- * Typed service adapters. Every future backend call goes through these interfaces.
- * The current implementations are local mocks: no network requests, no credentials.
+ * Typed service adapters. Every backend call goes through these interfaces.
+ * `arcade` is the real adapter (./arcade-http) unless VITE_ARCADE_MOCK=true, which
+ * selects the local mock below: no network requests, no credentials.
  * Logical operations mirror Arcade's documented print-pattern capabilities
  * (https://docs.arcade.ai/agents); method names are app adapter names, not SDK names.
  */
 import { ART_POOL, ALL_STYLES, type PatternStyle } from "@/data/catalog";
 import type { ArtworkAsset, ArtworkRender, ReferenceImage, StickerEffect } from "./types";
+import { USE_MOCK } from "./api";
+import { httpArcade } from "./arcade-http";
 
 export interface PatternRequest {
   prompt: string; // max 1000 chars
   modelId?: string | null; // omitted = let Arcade choose
   colors?: string[]; // up to 10, #RRGGBB
   references?: Pick<ReferenceImage, "id" | "name" | "mimeType" | "size">[]; // up to 3
+  referenceIds?: string[]; // Arcade reference IDs, up to 3
   productCategory?: string; // reserved for future use; not used in V1
 }
 
@@ -164,5 +168,5 @@ export const mockStickerService: StickerService = {
   },
 };
 
-export const arcade = mockArcade;
+export const arcade: ArcadeService = USE_MOCK ? mockArcade : httpArcade;
 export const stickerService = mockStickerService;
