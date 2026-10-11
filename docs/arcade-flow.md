@@ -54,7 +54,7 @@ Order `status` values from Arcade, grouped into the UI's five steps (Payment, Or
 
 ## Journal studio (`journal-studio/`)
 
-The Lovable app (TanStack Start + Vite) lives in `journal-studio/` and keeps being edited in Lovable. It has no server code of its own: `journal-studio/src/lib/como/arcade-http.ts` calls the routes above over HTTP, and the Arcade key stays on the Next.js server. `src/proxy.ts` allows cross-origin calls from `*.lovable.app`, `*.lovableproject.com`, `localhost` and `CORS_ALLOWED_ORIGINS`.
+The Lovable app (TanStack Start + Vite) lives in `journal-studio/` and keeps being edited in Lovable. It is deployed as its own Vercel project, `como-studio` (root directory `journal-studio`, production from `main`), and `next.config.ts` serves it on the main site: `/`, `/studio`, `/inside` and `/finished` plus any path this app doesn't own are proxied to `STUDIO_URL` (default `https://como-studio.vercel.app`), while `/api/*` and `/order/*` stay in this app. It has no server code of its own: `journal-studio/src/lib/como/arcade-http.ts` calls the routes above over HTTP, and the Arcade key stays on the Next.js server. `src/proxy.ts` allows cross-origin calls from `*.lovable.app`, `*.lovableproject.com`, `localhost` and `CORS_ALLOWED_ORIGINS`.
 
 - Generate: one `patterns/create` job per idea (`VITE_IDEAS_PER_BATCH`, default 4), with `colors`, up to 3 `referenceIds` and a `modelId` when the style name matches a model.
 - Change one area: the 3×3 picker cell becomes a PNG mask (alpha > 0 is editable) at the pattern's aspect ratio, long edge at most 1536 px.
