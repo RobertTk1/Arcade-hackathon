@@ -133,3 +133,22 @@ h3 {
 @keyframes studio-breathe { to { opacity: .5; } }
 @media (prefers-reduced-motion: reduce) { .generating-preview { animation: none; } }
 @media (max-width: 760px) { .studio-header { padding: 18px 20px; }.studio-header-note { display: none; }.studio-exit { margin-left: auto; }.studio-stepbar { padding: 14px 20px; }.studio-stepbar > span:last-child { display: none; }.studio-content { padding: 28px 20px 0; }.studio-grid { grid-template-columns: minmax(0,1fr); gap: 20px; }.studio-card { padding: 20px; }.studio-footer { flex-wrap: wrap; }.studio-footer p { display: none; }.studio-primary { white-space: normal; }.studio-preview { margin-bottom: 8px; } }
+
+/* Progress visibility */
+.progress { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--off-white); }
+.progress-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.progress-time { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text-light); }
+.progress-bar { height: 4px; border-radius: 999px; background: var(--forest-pale); overflow: hidden; }
+.progress-bar span { display: block; height: 100%; border-radius: inherit; background: var(--forest); transition: width 0.6s ease; }
+.progress-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.progress-step { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--text-light); }
+.progress-step.done { color: var(--text-mid); }
+.progress-step.active { color: var(--text-dark); font-weight: 500; }
+.progress-step small { display: block; margin-top: 2px; font-weight: 400; font-size: 12px; color: var(--text-mid); }
+.progress-dot { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 11px; color: white; }
+.progress-step.done .progress-dot { background: var(--forest); border-color: var(--forest); }
+.progress-step.active .progress-dot { border-color: var(--peach); border-top-color: var(--forest); animation: como-spin 0.9s linear infinite; }
+.progress-note { margin: 0; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-light); font-variant-numeric: tabular-nums; }
+.spinner { display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); border-top-color: white; animation: como-spin 0.9s linear infinite; }
+@keyframes como-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .progress-step.active .progress-dot, .spinner { animation-duration: 3s; } .progress-bar span { transition: none; } }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NotebookMockup } from "./NotebookMockup";
+import { ProgressTracker, type TrackerStep } from "./ProgressTracker";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
 type OrderPhase = "idle" | "building" | "ready" | "ordering" | "error";
@@ -16,6 +17,35 @@ type Product = {
 };
 
 const POLL_MS = 3000;
+
+type Activity = {
+  title: string;
+  steps: TrackerStep[];
+  current: number;
+  startedAt: number;
+  note?: string;
+};
+
+const coverSteps = (withImage: boolean): TrackerStep[] => [
+  ...(withImage ? [{ label: "Uploading your inspiration image", short: "Uploading image…" }] : []),
+  { label: "Sending your description to Arcade", short: "Sending to Arcade…" },
+  { label: "Arcade is painting your pattern", short: "Painting your pattern…", hint: "Usually 25–60 seconds, longer with an image" },
+  { label: "Loading your cover", short: "Loading your cover…" },
+];
+
+const ORDER_STEPS: TrackerStep[] = [
+  { label: "Sending your cover to Arcade", short: "Sending to Arcade…" },
+  { label: "Arcade is building your notebook", short: "Building your notebook…", hint: "Usually under a minute" },
+  { label: "Preparing your order", short: "Preparing your order…" },
+];
+
+const CHECKOUT_STEPS: TrackerStep[] = [
+  { label: "Creating your checkout with Arcade", short: "Creating checkout…" },
+  { label: "Opening secure checkout", short: "Opening checkout…" },
+];
+
+const jobNote = (jobId: string, checks: number) =>
+  `Arcade job …${jobId.slice(-6)} · still working · checked ${checks} ${checks === 1 ? "time" : "times"}`;
 
 export function CoverDesigner() {
   const router = useRouter();
@@ -30,6 +60,7 @@ export function CoverDesigner() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [patternId, setPatternId] = useState<string | null>(null);
+  const [activity, setActivity] = useState<Activity | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -58,21 +89,32 @@ export function CoverDesigner() {
   const busy = phase === "uploading" || phase === "generating";
   const ordering = orderPhase === "building" || orderPhase === "ordering";
 
+  function begin(title: string, steps: TrackerStep[]) {
+    setActivity({ title, steps, current: 0, startedAt: Date.now() });
+  }
+
+  function advance(current: number, note?: string) {
+    setActivity((a) => (a ? { ...a, current, note } : a));
+  }
+
   function fail(message: string) {
+    setActivity(null);
     setError(message);
     setPhase("error");
   }
 
-  function poll(jobId: string) {
+  function poll(jobId: string, paintStep: number, checks = 1) {
+    advance(paintStep, jobNote(jobId, checks));
     timer.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/covers/${jobId}`);
         const data = await res.json();
         if (!res.ok) return fail(data.error ?? "Something went wrong");
-        if (data.status === "running") return poll(jobId);
+        if (data.status === "running") return poll(jobId, paintStep, checks + 1);
         if (data.status === "failed") return fail(data.error);
         setCover(data.imageUrl);
         setPatternId(data.patternId);
+        setActivity(null);
         setPhase("done");
       } catch {
         fail("Lost connection while generating");
@@ -81,19 +123,22 @@ export function CoverDesigner() {
   }
 
   function orderFail(message: string) {
+    setActivity(null);
     setOrderError(message);
     setOrderPhase("error");
   }
 
-  function pollProduct(jobId: string) {
+  function pollProduct(jobId: string, checks = 1) {
+    advance(1, jobNote(jobId, checks));
     timer.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/products/${jobId}`);
         const data = await res.json();
         if (!res.ok) return orderFail(data.error ?? "Something went wrong");
-        if (data.status === "running") return pollProduct(jobId);
+        if (data.status === "running") return pollProduct(jobId, checks + 1);
         if (data.status === "failed") return orderFail(data.error);
         setProduct(data);
+        setActivity(null);
         setOrderPhase("ready");
       } catch {
         orderFail("Lost connection while preparing your order");
@@ -105,6 +150,7 @@ export function CoverDesigner() {
     if (!patternId) return;
     setOrderError(null);
     setOrderPhase("building");
+    begin("Placing your order", ORDER_STEPS);
     try {
       const res = await fetch("/api/products", {
         method: "POST",
@@ -121,11 +167,13 @@ export function CoverDesigner() {
 
   async function checkout() {
     if (!product) return;
+    setOrderError(null);
     setOrderPhase("ordering");
     // Arcade's checkout has no return URL, so payment opens in a new tab while this
     // tab moves to the order status page. The tab must be opened synchronously in the
     // click handler or the browser blocks it.
     const payTab = window.open("", "_blank");
+    begin("Starting checkout", CHECKOUT_STEPS);
     try {
       const res = await fetch("/api/checkouts", {
         method: "POST",
@@ -135,9 +183,11 @@ export function CoverDesigner() {
       const data = await res.json();
       if (!res.ok) {
         payTab?.close();
+        setActivity(null);
         setOrderPhase("ready");
         return setOrderError(data.error ?? "Couldn't start checkout");
       }
+      advance(1, `Checkout ${String(data.checkoutId).slice(-6)} is ready`);
       if (payTab) {
         payTab.location.href = data.checkoutUrl;
         router.push(`/order/${data.checkoutId}`);
@@ -150,6 +200,7 @@ export function CoverDesigner() {
       }
     } catch {
       payTab?.close();
+      setActivity(null);
       setOrderPhase("ready");
       setOrderError("Couldn't start checkout");
     }
@@ -165,6 +216,8 @@ export function CoverDesigner() {
     setProduct(null);
     setOrderPhase("idle");
     setOrderError(null);
+    const offset = file ? 1 : 0;
+    begin("Creating your cover", coverSteps(!!file));
     try {
       let referenceId: string | undefined;
       if (file) {
@@ -177,6 +230,7 @@ export function CoverDesigner() {
         referenceId = upData.referenceId;
       }
       setPhase("generating");
+      advance(offset);
       const res = await fetch("/api/covers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,7 +238,7 @@ export function CoverDesigner() {
       });
       const data = await res.json();
       if (!res.ok) return fail(data.error ?? "Something went wrong");
-      poll(data.jobId);
+      poll(data.jobId, offset + 1);
     } catch {
       fail("Something went wrong. Try again.");
     }
@@ -272,7 +326,7 @@ export function CoverDesigner() {
           <strong>Getting to know your patterns</strong>
           <p>For your journaling, not a visual instruction. Only the cover description and inspiration guide the artwork.</p>
         </div>
-        <div className="studio-card preview-card" aria-live="polite" aria-busy={busy || orderPhase === "building"}>
+        <div className="studio-card preview-card" aria-live="polite" aria-busy={!!activity}>
           {cover && patternId ? (
             <>
               <NotebookMockup cover={cover} />
@@ -283,7 +337,9 @@ export function CoverDesigner() {
               >
                 Download cover
               </a>
-              {product ? (
+              {activity ? (
+                <ProgressTracker {...activity} />
+              ) : product ? (
                 <div className="text-center">
                   <p className="studio-hint">
                     <strong>Your COMO notebook</strong>
@@ -295,7 +351,7 @@ export function CoverDesigner() {
                     disabled={orderPhase === "ordering"}
                     className="studio-primary"
                   >
-                    {orderPhase === "ordering" ? "Opening checkout…" : "Continue to checkout"}
+                    Continue to checkout
                   </button>
                 </div>
               ) : (
@@ -305,7 +361,7 @@ export function CoverDesigner() {
                   disabled={orderPhase === "building"}
                   className="studio-primary"
                 >
-                  {orderPhase === "building" ? "Preparing your order…" : "Order my notebook"}
+                  Order my notebook
                 </button>
               )}
               {orderError && <p role="alert" className="studio-error">{orderError}</p>}
@@ -320,7 +376,11 @@ export function CoverDesigner() {
                 {Array.from({ length: 8 }, (_, i) => <span key={i} className={`botanical-leaf leaf-${i}`} />)}
               </div>
               <strong className="preview-caption">{busy ? "A little space for something yours." : "Minimal cover · flowing leaves"}</strong>
-              <p className="studio-hint">{phase === "uploading" ? "Uploading your inspiration image…" : phase === "generating" ? "Exploring your description. This usually takes a minute or two." : "Room to breathe, gentle colours and a simple composition. Add your title after choosing a concept."}</p>
+              {activity ? (
+                <ProgressTracker {...activity} />
+              ) : (
+                <p className="studio-hint">Room to breathe, gentle colours and a simple composition. Add your title after choosing a concept.</p>
+              )}
               {!busy && <span className="preview-example">Illustrative starting point</span>}
             </>
           )}
@@ -330,7 +390,9 @@ export function CoverDesigner() {
         <Link href="/" className="studio-secondary">← Back</Link>
         <p>A few words today. A cover that feels like you.</p>
         <button type="submit" form="cover-form" disabled={busy || ordering || !prompt.trim()} className="studio-primary">
-          {phase === "uploading" ? "Uploading image…" : phase === "generating" ? "Creating your cover…" : cover ? "Generate again ↗" : "Generate my cover ↗"}
+          {busy && activity ? (
+            <><span className="spinner" aria-hidden="true" />{activity.steps[activity.current]?.short}</>
+          ) : cover ? "Generate again ↗" : "Generate my cover ↗"}
         </button>
       </footer>
     </div>
