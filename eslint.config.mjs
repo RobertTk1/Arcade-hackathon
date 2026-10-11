@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Other sessions' git worktrees live here.
     ".claude/worktrees/**",
+    // Lovable app; it has its own lint config.
+    "journal-studio/**",
   ]),
 ]);
 
