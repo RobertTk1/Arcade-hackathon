@@ -27,7 +27,11 @@ Arcade has no notebook category. COMO shows a notebook in the UI, but the order 
 5. `products/create` `{requestId, patternId, categoryId, selections, fit}` -> `jobId`
 6. `jobs/get` until `succeeded` -> `result.productId`; then `products/get` -> `title`, `selectionLabel`, `imageUrl`, `images`, `unitPrice`
 7. `checkouts/create` `{requestId, lines: [{productId, quantity}], dropShip}` -> `checkoutId`, `checkoutUrl`
-8. `orders/get` `{checkoutId}` after payment (**not wired yet**)
+8. `orders/get` `{checkoutId}`: returns 404 until the checkout is paid, then the order with `status`, `orderNumber`, `total`, `lines`, `tracking`
+
+Arcade documents **no return or success URL** on `checkouts/create`, so the browser cannot be sent back after payment. The UI opens `checkoutUrl` in a new tab (the tab is opened synchronously in the click handler, or the browser blocks it) and moves the current tab to `/order/[checkoutId]`, which polls `orders/get`. If pop-ups are blocked, it pays in the same tab and keeps the `checkoutId` in `localStorage` so the designer can link back to the status page.
+
+Order `status` values from Arcade, grouped into the UI's five steps (Payment, Order placed, Being made, On its way, Delivered): `ordered` is placed; `cadReview`, `sampleReview`, `inProduction`, `inReview`, `inCorrection`, `approved`, `updatedInfo` are being made; `shipped`; `delivered` and `fulfilled`; `refunded` is shown separately.
 
 ## UI element to API map
 
@@ -40,7 +44,9 @@ Arcade has no notebook category. COMO shows a notebook in the UI, but the order 
 | Download cover | `GET /api/patterns/[patternId]/download` | `patterns/get`, then fetches `imageUrl` | Wired |
 | Order my notebook (build) | `POST /api/products`, `GET /api/products/[jobId]` | `categories/list`, `categories/get`, `products/create`, `jobs/get`, `products/get` | Wired, stand-in product |
 | Continue to checkout | `POST /api/checkouts` | `checkouts/create` | Wired |
-| Order confirmation / status | none | `orders/get` | **Not built** |
+| Order confirmation / status page | `GET /api/orders/[checkoutId]` (poll every 4 s unpaid, 20 s after) | `orders/get` | Built; **unverified against a paid order** |
+
+`/api/orders/[checkoutId]` returns only the order number, status, total, line items and carrier tracking links. It drops the shipping address, maker name and tracking number, because checkout IDs are plain numbers and the page has no login.
 
 ## Request constraints
 

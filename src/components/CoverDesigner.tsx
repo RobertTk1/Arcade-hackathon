@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { NotebookMockup } from "./NotebookMockup";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
@@ -17,6 +18,7 @@ type Product = {
 const POLL_MS = 3000;
 
 export function CoverDesigner() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("Minimal cover");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -33,6 +35,18 @@ export function CoverDesigner() {
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
+
+  const lastCheckout = useSyncExternalStore(
+    () => () => {},
+    () => {
+      try {
+        return localStorage.getItem("como:lastCheckout");
+      } catch {
+        return null;
+      }
+    },
+    () => null,
+  );
 
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => {
@@ -108,6 +122,10 @@ export function CoverDesigner() {
   async function checkout() {
     if (!product) return;
     setOrderPhase("ordering");
+    // Arcade's checkout has no return URL, so payment opens in a new tab while this
+    // tab moves to the order status page. The tab must be opened synchronously in the
+    // click handler or the browser blocks it.
+    const payTab = window.open("", "_blank");
     try {
       const res = await fetch("/api/checkouts", {
         method: "POST",
@@ -116,11 +134,22 @@ export function CoverDesigner() {
       });
       const data = await res.json();
       if (!res.ok) {
+        payTab?.close();
         setOrderPhase("ready");
         return setOrderError(data.error ?? "Couldn't start checkout");
       }
-      window.location.assign(data.checkoutUrl);
+      if (payTab) {
+        payTab.location.href = data.checkoutUrl;
+        router.push(`/order/${data.checkoutId}`);
+      } else {
+        // Pop-up blocked: pay in this tab and keep the status page one click away.
+        try {
+          localStorage.setItem("como:lastCheckout", data.checkoutId);
+        } catch {}
+        window.location.assign(data.checkoutUrl);
+      }
     } catch {
+      payTab?.close();
       setOrderPhase("ready");
       setOrderError("Couldn't start checkout");
     }
@@ -230,6 +259,11 @@ export function CoverDesigner() {
           <p className="studio-hint">Use images you’re happy to include. Inspiration helps shape the cover, rather than copying it exactly.</p>
         </section>
         {error && <p role="alert" className="studio-error">{error}</p>}
+        {lastCheckout && (
+          <p className="studio-hint">
+            Paid for an order in the last session? <Link href={`/order/${lastCheckout}`} className="underline">Check its status</Link>.
+          </p>
+        )}
       </form>
 
       <aside className="studio-preview" aria-label="Cover preview">
