@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 420" role="img" aria-label="Notebook placeholder">
+  <ellipse cx="164" cy="402" rx="120" ry="10" fill="#000" opacity=".12"/>
+  <rect x="38" y="28" width="248" height="360" rx="10" fill="#d9d2c3"/>
+  <rect x="30" y="20" width="248" height="360" rx="10" fill="#7a9e87"/>
+  <rect x="30" y="20" width="26" height="360" rx="10" fill="#5f8470"/>
+  <g fill="#f4efe4">
+    <circle cx="43" cy="60" r="4"/><circle cx="43" cy="110" r="4"/><circle cx="43" cy="160" r="4"/>
+    <circle cx="43" cy="210" r="4"/><circle cx="43" cy="260" r="4"/><circle cx="43" cy="310" r="4"/>
+  </g>
+  <rect x="86" y="70" width="150" height="130" rx="6" fill="#f4efe4"/>
+  <path d="M96 190c20-40 38-26 52-50s34-46 58-38 22 24 20 38" fill="none" stroke="#7a9e87" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 8"/>
+  <text x="161" y="150" text-anchor="middle" font-family="Georgia, serif" font-size="34" letter-spacing="6" fill="#3f5f4e">COMO</text>
+  <text x="161" y="174" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#6b8a78">your cover goes here</text>
+</svg>
