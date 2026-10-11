@@ -15,7 +15,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ jobId: string 
       return Response.json({ status: "failed", error: job.error?.message ?? "Generation failed" });
     }
     if (job.status === "succeeded") {
-      if (!job.result) return Response.json({ status: "failed", error: "No pattern was returned" });
+      // fixDeformity succeeds with a null result when there was nothing to repair.
+      if (!job.result) {
+        return Response.json({ status: "failed", error: "No pattern was returned", noResult: true });
+      }
       const pattern = await arcade<{ imageUrl: string; width: number; height: number }>(
         "/patterns/get",
         { patternId: job.result.patternId },
