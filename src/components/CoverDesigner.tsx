@@ -203,7 +203,7 @@ export function CoverDesigner() {
             ) : <span className="upload-placeholder" aria-hidden="true">↗</span>}
             <div className="inspiration-file">
               <strong>{file ? file.name : "An image that feels like you"}</strong>
-              <span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "PNG, JPG, GIF or WebP · up to 10 MB"}</span>
+              <span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "PNG, JPG, GIF or WebP · up to 4 MB"}</span>
             </div>
             <input
               ref={fileInput}
@@ -214,8 +214,8 @@ export function CoverDesigner() {
               disabled={busy || ordering}
               onChange={(e) => {
                 const selected = e.target.files?.[0] ?? null;
-                if (selected && (!['image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(selected.type) || selected.size > 10 * 1024 * 1024)) {
-                  setError("Choose a PNG, JPG, GIF or WebP image under 10 MB.");
+                if (selected && (!['image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(selected.type) || selected.size > 4 * 1024 * 1024)) {
+                  setError("Choose a PNG, JPG, GIF or WebP image under 4 MB.");
                   e.target.value = "";
                   return;
                 }
