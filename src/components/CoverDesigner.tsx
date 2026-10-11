@@ -252,8 +252,7 @@ export function CoverDesigner() {
               {product ? (
                 <div className="text-center">
                   <p className="studio-hint">
-                    Printed on: {product.title}
-                    {product.selectionLabel ? ` (${product.selectionLabel})` : ""}
+                    <strong>Your COMO notebook</strong>
                     {product.unitPrice ? ` · ${product.unitPrice.amount} ${product.unitPrice.currency}` : ""}
                   </p>
                   <button
@@ -276,6 +275,9 @@ export function CoverDesigner() {
                 </button>
               )}
               {orderError && <p role="alert" className="studio-error">{orderError}</p>}
+              <p className="studio-hint">
+                Hackathon demo: checkout uses an Arcade placemat as a placeholder for the notebook.
+              </p>
             </>
           ) : (
             <>
