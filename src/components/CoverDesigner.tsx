@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { NotebookMockup } from "./NotebookMockup";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
@@ -17,6 +18,8 @@ const POLL_MS = 3000;
 
 export function CoverDesigner() {
   const [prompt, setPrompt] = useState("");
+  const [style, setStyle] = useState("Minimal cover");
+  const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +40,9 @@ export function CoverDesigner() {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  const busy = phase === "uploading" || phase === "generating";
+  const ordering = orderPhase === "building" || orderPhase === "ordering";
 
   function fail(message: string) {
     setError(message);
@@ -122,9 +128,14 @@ export function CoverDesigner() {
 
   async function generate(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || ordering) return;
+    if (timer.current) clearTimeout(timer.current);
     setError(null);
     setCover(null);
     setPatternId(null);
+    setProduct(null);
+    setOrderPhase("idle");
+    setOrderError(null);
     try {
       let referenceId: string | undefined;
       if (file) {
@@ -140,7 +151,7 @@ export function CoverDesigner() {
       const res = await fetch("/api/covers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, referenceId }),
+        body: JSON.stringify({ prompt: `${prompt.trim()}\nCover style: ${style}`, referenceId }),
       });
       const data = await res.json();
       if (!res.ok) return fail(data.error ?? "Something went wrong");
@@ -150,96 +161,142 @@ export function CoverDesigner() {
     }
   }
 
-  const busy = phase === "uploading" || phase === "generating";
-
   return (
-    <div className="grid w-full gap-10 md:grid-cols-2">
-      <form onSubmit={generate} className="flex flex-col gap-6">
-        <label className="flex flex-col gap-2">
-          <span className="font-medium">Your image (optional)</span>
-          <input
-            type="file"
-            accept="image/gif,image/jpeg,image/png,image/webp"
-            disabled={busy}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-forest file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-          />
-          {preview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Your reference" className="mt-2 h-28 w-28 rounded-lg object-cover" />
-          )}
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="font-medium">Describe your pattern</span>
+    <div className="studio-grid">
+      <form id="cover-form" onSubmit={generate} className="studio-form">
+        <section className="studio-card">
+          <h2>Describe your cover</h2>
+          <label htmlFor="cover-description" className="studio-label">Visual description</label>
           <textarea
+            id="cover-description"
             required
-            rows={4}
+            maxLength={1200}
+            rows={6}
             value={prompt}
-            disabled={busy}
+            disabled={busy || ordering}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Soft watercolor leaves in sage green and cream"
-            className="rounded-2xl border border-line bg-white p-3 outline-none focus:border-forest"
+            placeholder="Soft repeating leaf shapes on a warm cream background. Muted sage and forest green, a gentle botanical rhythm, and plenty of open space for the title. Calm, simple and not too busy."
+            className="studio-textarea"
           />
-        </label>
+          <div className="studio-field-meta">
+            <span>A few thoughtful words are enough.</span>
+            <span>{prompt.length} / 1200</span>
+          </div>
+          <p className="studio-hint">Suggestions to set your style and texture. Edit the words before generating.</p>
+          <fieldset className="studio-styles" disabled={busy || ordering}>
+            <legend>Look</legend>
+            {["Minimal cover", "Soft illustration", "Paper texture"].map((option) => (
+              <label key={option} className={style === option ? "style-chip selected" : "style-chip"}>
+                <input type="radio" name="cover-style" value={option} checked={style === option} onChange={() => setStyle(option)} />
+                {style === option && <span aria-hidden="true">✓ </span>}{option}
+              </label>
+            ))}
+          </fieldset>
+        </section>
 
-        <button
-          type="submit"
-          disabled={busy || !prompt.trim()}
-          className="self-start rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light disabled:opacity-50"
-        >
-          {phase === "uploading" ? "Uploading image…" : phase === "generating" ? "Designing…" : "Design my cover"}
-        </button>
-        {error && <p role="alert" className="text-raspberry">{error}</p>}
+        <section className="studio-card">
+          <h2>Add inspiration <span className="optional">· optional</span></h2>
+          <div className="inspiration-upload">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="Your cover inspiration" className="inspiration-thumbnail" />
+            ) : <span className="upload-placeholder" aria-hidden="true">↗</span>}
+            <div className="inspiration-file">
+              <strong>{file ? file.name : "An image that feels like you"}</strong>
+              <span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "PNG, JPG, GIF or WebP · up to 10 MB"}</span>
+            </div>
+            <input
+              ref={fileInput}
+              id="cover-reference"
+              aria-label="Upload a cover inspiration image"
+              type="file"
+              accept="image/gif,image/jpeg,image/png,image/webp"
+              disabled={busy || ordering}
+              onChange={(e) => {
+                const selected = e.target.files?.[0] ?? null;
+                if (selected && (!['image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(selected.type) || selected.size > 10 * 1024 * 1024)) {
+                  setError("Choose a PNG, JPG, GIF or WebP image under 10 MB.");
+                  e.target.value = "";
+                  return;
+                }
+                setFile(selected);
+                setError(null);
+              }}
+              className="sr-only"
+            />
+            <button type="button" className="studio-secondary" disabled={busy || ordering} onClick={() => fileInput.current?.click()}>{file ? "Replace image" : "+ Upload image"}</button>
+            {file && <button type="button" className="studio-remove" disabled={busy || ordering} onClick={() => { setFile(null); if (fileInput.current) fileInput.current.value = ""; }}>Remove</button>}
+          </div>
+          <p className="studio-hint">Use images you’re happy to include. Inspiration helps shape the cover, rather than copying it exactly.</p>
+        </section>
+        {error && <p role="alert" className="studio-error">{error}</p>}
       </form>
 
-      <div className="flex min-h-80 flex-col items-center justify-center gap-5 rounded-[var(--radius-card)] border border-line bg-off-white p-4">
-        {cover && patternId ? (
-          <>
-            <NotebookMockup cover={cover} />
-            <p className="text-sm text-ink-light">Your cover on a COMO notebook</p>
-            <a
-              href={`/api/patterns/${patternId}/download`}
-              className="rounded-full bg-forest px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-light"
-            >
-              Download cover
-            </a>
-            {product ? (
-              <div className="flex flex-col items-center gap-3 text-center">
-                <p className="text-sm text-ink-mid">
-                  Printed on: {product.title}
-                  {product.selectionLabel ? ` (${product.selectionLabel})` : ""}
-                  {product.unitPrice ? ` · ${product.unitPrice.amount} ${product.unitPrice.currency}` : ""}
-                </p>
+      <aside className="studio-preview" aria-label="Cover preview">
+        <div className="reflection-note">
+          <p className="studio-eyebrow">Your COMO reflection prompt</p>
+          <strong>Getting to know your patterns</strong>
+          <p>For your journaling, not a visual instruction. Only the cover description and inspiration guide the artwork.</p>
+        </div>
+        <div className="studio-card preview-card" aria-live="polite" aria-busy={busy || orderPhase === "building"}>
+          {cover && patternId ? (
+            <>
+              <NotebookMockup cover={cover} />
+              <p className="studio-hint">Your cover on a COMO notebook</p>
+              <a
+                href={`/api/patterns/${patternId}/download`}
+                className="studio-primary"
+              >
+                Download cover
+              </a>
+              {product ? (
+                <div className="text-center">
+                  <p className="studio-hint">
+                    Printed on: {product.title}
+                    {product.selectionLabel ? ` (${product.selectionLabel})` : ""}
+                    {product.unitPrice ? ` · ${product.unitPrice.amount} ${product.unitPrice.currency}` : ""}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={checkout}
+                    disabled={orderPhase === "ordering"}
+                    className="studio-primary"
+                  >
+                    {orderPhase === "ordering" ? "Opening checkout…" : "Continue to checkout"}
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={checkout}
-                  disabled={orderPhase === "ordering"}
-                  className="rounded-full bg-peach px-6 py-3 text-sm font-medium text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                  onClick={prepareOrder}
+                  disabled={orderPhase === "building"}
+                  className="studio-primary"
                 >
-                  {orderPhase === "ordering" ? "Opening checkout…" : "Continue to checkout"}
+                  {orderPhase === "building" ? "Preparing your order…" : "Order my notebook"}
                 </button>
+              )}
+              {orderError && <p role="alert" className="studio-error">{orderError}</p>}
+            </>
+          ) : (
+            <>
+              <h2>{busy ? "Creating your cover" : "Your starting point"}</h2>
+              <div className={`botanical-preview${busy ? " generating-preview" : ""}`} aria-hidden="true">
+                {Array.from({ length: 8 }, (_, i) => <span key={i} className={`botanical-leaf leaf-${i}`} />)}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={prepareOrder}
-                disabled={orderPhase === "building"}
-                className="rounded-full bg-peach px-6 py-3 text-sm font-medium text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {orderPhase === "building" ? "Preparing your order…" : "Order my notebook"}
-              </button>
-            )}
-            {orderError && <p role="alert" className="text-raspberry">{orderError}</p>}
-          </>
-        ) : (
-          <p className="text-center text-ink-light">
-            {phase === "generating"
-              ? "Generating your pattern. This usually takes a minute or two."
-              : "Your cover will appear here."}
-          </p>
-        )}
-      </div>
+              <strong className="preview-caption">{busy ? "A little space for something yours." : "Minimal cover · flowing leaves"}</strong>
+              <p className="studio-hint">{phase === "uploading" ? "Uploading your inspiration image…" : phase === "generating" ? "Exploring your description. This usually takes a minute or two." : "Room to breathe, gentle colours and a simple composition. Add your title after choosing a concept."}</p>
+              {!busy && <span className="preview-example">Illustrative starting point</span>}
+            </>
+          )}
+        </div>
+      </aside>
+      <footer className="studio-footer">
+        <Link href="/" className="studio-secondary">← Back</Link>
+        <p>A few words today. A cover that feels like you.</p>
+        <button type="submit" form="cover-form" disabled={busy || ordering || !prompt.trim()} className="studio-primary">
+          {phase === "uploading" ? "Uploading image…" : phase === "generating" ? "Creating your cover…" : cover ? "Generate again ↗" : "Generate my cover ↗"}
+        </button>
+      </footer>
     </div>
   );
 }
