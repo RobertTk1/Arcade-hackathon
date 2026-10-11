@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NotebookMockup } from "./NotebookMockup";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
+type OrderPhase = "idle" | "building" | "ready" | "ordering" | "error";
+
+type Product = {
+  productId: string;
+  title: string;
+  selectionLabel: string;
+  unitPrice: { amount: string; currency: string } | null;
+};
 
 const POLL_MS = 3000;
 
@@ -13,6 +21,9 @@ export function CoverDesigner() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [cover, setCover] = useState<string | null>(null);
+  const [orderPhase, setOrderPhase] = useState<OrderPhase>("idle");
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [patternId, setPatternId] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,6 +58,66 @@ export function CoverDesigner() {
         fail("Lost connection while generating");
       }
     }, POLL_MS);
+  }
+
+  function orderFail(message: string) {
+    setOrderError(message);
+    setOrderPhase("error");
+  }
+
+  function pollProduct(jobId: string) {
+    timer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products/${jobId}`);
+        const data = await res.json();
+        if (!res.ok) return orderFail(data.error ?? "Something went wrong");
+        if (data.status === "running") return pollProduct(jobId);
+        if (data.status === "failed") return orderFail(data.error);
+        setProduct(data);
+        setOrderPhase("ready");
+      } catch {
+        orderFail("Lost connection while preparing your order");
+      }
+    }, POLL_MS);
+  }
+
+  async function prepareOrder() {
+    if (!patternId) return;
+    setOrderError(null);
+    setOrderPhase("building");
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patternId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return orderFail(data.error ?? "Something went wrong");
+      pollProduct(data.jobId);
+    } catch {
+      orderFail("Something went wrong. Try again.");
+    }
+  }
+
+  async function checkout() {
+    if (!product) return;
+    setOrderPhase("ordering");
+    try {
+      const res = await fetch("/api/checkouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: product.productId, quantity: 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOrderPhase("ready");
+        return setOrderError(data.error ?? "Couldn't start checkout");
+      }
+      window.location.assign(data.checkoutUrl);
+    } catch {
+      setOrderPhase("ready");
+      setOrderError("Couldn't start checkout");
+    }
   }
 
   async function generate(e: React.FormEvent) {
@@ -133,6 +204,33 @@ export function CoverDesigner() {
             >
               Download cover
             </a>
+            {product ? (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-sm text-ink-mid">
+                  Printed on: {product.title}
+                  {product.selectionLabel ? ` (${product.selectionLabel})` : ""}
+                  {product.unitPrice ? ` · ${product.unitPrice.amount} ${product.unitPrice.currency}` : ""}
+                </p>
+                <button
+                  type="button"
+                  onClick={checkout}
+                  disabled={orderPhase === "ordering"}
+                  className="rounded-full bg-peach px-6 py-3 text-sm font-medium text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {orderPhase === "ordering" ? "Opening checkout…" : "Continue to checkout"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={prepareOrder}
+                disabled={orderPhase === "building"}
+                className="rounded-full bg-peach px-6 py-3 text-sm font-medium text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {orderPhase === "building" ? "Preparing your order…" : "Order my notebook"}
+              </button>
+            )}
+            {orderError && <p role="alert" className="text-raspberry">{orderError}</p>}
           </>
         ) : (
           <p className="text-center text-ink-light">
