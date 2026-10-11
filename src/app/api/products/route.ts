@@ -1,5 +1,5 @@
 import { arcade, errorResponse } from "@/lib/arcade/client";
-import { resolveNotebook } from "@/lib/arcade/notebook";
+import { resolveStandIn } from "@/lib/arcade/product";
 
 export async function POST(req: Request) {
   try {
@@ -7,15 +7,15 @@ export async function POST(req: Request) {
     if (typeof patternId !== "string" || !patternId) {
       return Response.json({ error: "patternId is required" }, { status: 400 });
     }
-    const notebook = await resolveNotebook();
+    const standIn = await resolveStandIn();
     const job = await arcade<{ jobId: string }>("/products/create", {
       requestId: typeof requestId === "string" ? requestId : crypto.randomUUID(),
       patternId,
-      categoryId: notebook.categoryId,
-      selections: notebook.selections,
+      categoryId: standIn.categoryId,
+      selections: standIn.selections,
       fit: { mode: "fill" },
     });
-    return Response.json({ jobId: job.jobId, category: notebook.name });
+    return Response.json({ jobId: job.jobId, category: standIn.name });
   } catch (e) {
     return errorResponse(e);
   }
